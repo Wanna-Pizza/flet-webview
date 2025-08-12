@@ -42,83 +42,128 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
 
   Future<void> _initializeWebView() async {
     try {
-      // Platform-specific initialization
+      // Platform-specific initialization with null safety
       var params = const PlatformWebViewControllerCreationParams();
       controller = WebViewController.fromPlatformCreationParams(params);
 
       var preventLink = widget.control.attrString("preventLink")?.trim();
       
-      // Set background color first
-      if (widget.bgcolor != null) {
-        await controller.setBackgroundColor(widget.bgcolor!);
-      } else {
-        await controller.setBackgroundColor(Colors.white);
+      // Set background color with null check
+      try {
+        Color bgColor = widget.bgcolor ?? Colors.white;
+        await controller.setBackgroundColor(bgColor);
+      } catch (e) {
+        debugPrint('Error setting background color: $e');
       }
 
-      // Enable JavaScript
-      await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      // Enable JavaScript with error handling
+      try {
+        await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      } catch (e) {
+        debugPrint('Error setting JavaScript mode: $e');
+      }
 
-      // Set navigation delegate
-      await controller.setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (int progress) {
-            debugPrint('WebViewControl is loading (progress : $progress%)');
-            widget.backend.triggerControlEvent(
-                widget.control.id, "progress", progress.toString());
-            
-            if (progress == 100 && mounted) {
-              setState(() {
-                _isLoading = false;
-                _errorMessage = null;
-              });
-            }
-          },
-          onUrlChange: (UrlChange url) {
-            debugPrint('WebViewControl URL changed: ${url.url}');
-            widget.backend.triggerControlEvent(
-                widget.control.id, "url_change", url.url ?? "");
-          },
-          onPageStarted: (String url) {
-            debugPrint('WebViewControl page started loading: $url');
-            if (mounted) {
-              setState(() {
-                _isLoading = true;
-                _errorMessage = null;
-              });
-            }
-            widget.backend
-                .triggerControlEvent(widget.control.id, "page_started", url);
-          },
-          onPageFinished: (String url) {
-            debugPrint('WebViewControl page finished loading: $url');
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _errorMessage = null;
-              });
-            }
-            widget.backend
-                .triggerControlEvent(widget.control.id, "page_ended", url);
-          },
-          onWebResourceError: (WebResourceError error) {
-            debugPrint('WebView error: ${error.description}');
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _errorMessage = "WebView Resource Error: ${error.description}\nError Code: ${error.errorCode}\nError Type: ${error.errorType?.name ?? 'Unknown'}";
-              });
-            }
-            widget.backend.triggerControlEvent(widget.control.id,
-                "web_resource_error", "WebView error: ${error.description}");
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            if (preventLink != null && request.url.startsWith(preventLink)) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      );
+      // Set navigation delegate with comprehensive null checks
+      try {
+        await controller.setNavigationDelegate(
+          NavigationDelegate(
+            onProgress: (int progress) {
+              try {
+                debugPrint('WebViewControl is loading (progress : $progress%)');
+                widget.backend.triggerControlEvent(
+                    widget.control.id, "progress", progress.toString());
+                
+                if (progress == 100 && mounted) {
+                  setState(() {
+                    _isLoading = false;
+                    _errorMessage = null;
+                  });
+                }
+              } catch (e) {
+                debugPrint('Error in onProgress: $e');
+              }
+            },
+            onUrlChange: (UrlChange url) {
+              try {
+                debugPrint('WebViewControl URL changed: ${url.url}');
+                widget.backend.triggerControlEvent(
+                    widget.control.id, "url_change", url.url ?? "");
+              } catch (e) {
+                debugPrint('Error in onUrlChange: $e');
+              }
+            },
+            onPageStarted: (String url) {
+              try {
+                debugPrint('WebViewControl page started loading: $url');
+                if (mounted) {
+                  setState(() {
+                    _isLoading = true;
+                    _errorMessage = null;
+                  });
+                }
+                widget.backend
+                    .triggerControlEvent(widget.control.id, "page_started", url);
+              } catch (e) {
+                debugPrint('Error in onPageStarted: $e');
+              }
+            },
+            onPageFinished: (String url) {
+              try {
+                debugPrint('WebViewControl page finished loading: $url');
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                    _errorMessage = null;
+                  });
+                }
+                widget.backend
+                    .triggerControlEvent(widget.control.id, "page_ended", url);
+              } catch (e) {
+                debugPrint('Error in onPageFinished: $e');
+              }
+            },
+            onWebResourceError: (WebResourceError error) {
+              try {
+                String errorDesc = error.description ?? "Unknown error";
+                int errorCode = error.errorCode ?? -1;
+                String errorType = error.errorType?.name ?? "Unknown";
+                
+                debugPrint('WebView error: $errorDesc');
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                    _errorMessage = "WebView Resource Error: $errorDesc\nError Code: $errorCode\nError Type: $errorType";
+                  });
+                }
+                widget.backend.triggerControlEvent(widget.control.id,
+                    "web_resource_error", "WebView error: $errorDesc");
+              } catch (e) {
+                debugPrint('Error in onWebResourceError: $e');
+              }
+            },
+            onNavigationRequest: (NavigationRequest request) {
+              try {
+                if (preventLink != null && request.url.startsWith(preventLink)) {
+                  return NavigationDecision.prevent;
+                }
+                return NavigationDecision.navigate;
+              } catch (e) {
+                debugPrint('Error in onNavigationRequest: $e');
+                return NavigationDecision.navigate;
+              }
+            },
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error setting navigation delegate: $e');
+        if (mounted) {
+          setState(() {
+            _errorMessage = "Failed to set navigation delegate: $e";
+            _isLoading = false;
+          });
+        }
+        return;
+      }
 
       // Mark as initialized before loading content
       if (mounted) {
@@ -127,14 +172,26 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
         });
       }
 
-      // Load the initial URL
+      // Load the initial URL with comprehensive error handling
       try {
-        final url = widget.control.attrString("url", "https://flet.dev")!;
-        final method = parseLoadRequestMethod(
-            widget.control.attrString("method"), LoadRequestMethod.get)!;
+        String? urlString = widget.control.attrString("url");
+        if (urlString == null || urlString.isEmpty) {
+          urlString = "https://flet.dev";
+        }
         
-        debugPrint('Loading URL: $url with method: $method');
-        await controller.loadRequest(Uri.parse(url), method: method);
+        var method = parseLoadRequestMethod(
+            widget.control.attrString("method"), LoadRequestMethod.get);
+        if (method == null) {
+          method = LoadRequestMethod.get;
+        }
+        
+        debugPrint('Loading URL: $urlString with method: $method');
+        Uri? uri = Uri.tryParse(urlString);
+        if (uri == null) {
+          throw Exception("Invalid URL: $urlString");
+        }
+        
+        await controller.loadRequest(uri, method: method);
       } catch (e) {
         debugPrint('Error loading initial URL: $e');
         if (mounted) {
@@ -143,11 +200,17 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
             _isLoading = false;
           });
         }
+        
         // Fallback to a simple HTML page with error
         try {
           await controller.loadHtmlString(
-            '<html><body><h1>WebView Error</h1><p>URL loading failed: $e</p></body></html>'
+            '<html><body><h1>WebView Error</h1><p>URL loading failed: $e</p><p>Platform: macOS</p></body></html>'
           );
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
         } catch (htmlError) {
           debugPrint('Error loading fallback HTML: $htmlError');
           if (mounted) {
@@ -158,63 +221,98 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
         }
       }
 
-      // Set scroll position change listener
-      try {
-        await controller.setOnScrollPositionChange((ScrollPositionChange position) {
+      // Set listeners with individual error handling
+      _setEventListeners();
+
+      // Subscribe to backend methods
+      _subscribeToBackendMethods();
+
+    } catch (e) {
+      debugPrint('Error initializing WebView: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isInitialized = true;
+          _errorMessage = "WebView initialization failed: $e\nPlatform: ${Platform.operatingSystem}\nThis might be a macOS WebView compatibility issue.";
+        });
+      }
+    }
+  }
+
+  void _setEventListeners() {
+    // Set scroll position change listener
+    try {
+      controller.setOnScrollPositionChange((ScrollPositionChange position) {
+        try {
           widget.backend.triggerControlEvent(
               widget.control.id,
               "scroll",
               jsonEncode({
-                "x": position.x.toString(),
-                "y": position.y.toString(),
+                "x": (position.x ?? 0).toString(),
+                "y": (position.y ?? 0).toString(),
               }));
-        });
-      } catch (e) {
-        debugPrint('Error setting scroll listener: $e');
-      }
+        } catch (e) {
+          debugPrint('Error in scroll listener: $e');
+        }
+      });
+    } catch (e) {
+      debugPrint('Error setting scroll listener: $e');
+    }
 
-      // Set console message listener
-      try {
-        await controller.setOnConsoleMessage((JavaScriptConsoleMessage message) {
+    // Set console message listener
+    try {
+      controller.setOnConsoleMessage((JavaScriptConsoleMessage message) {
+        try {
           widget.backend.triggerControlEvent(
               widget.control.id,
               "console_message",
               jsonEncode({
-                "message": message.message,
-                "level": message.level.name,
+                "message": message.message ?? "",
+                "level": message.level?.name ?? "unknown",
               }));
-        });
-      } catch (e) {
-        debugPrint('Error setting console listener: $e');
-      }
+        } catch (e) {
+          debugPrint('Error in console message listener: $e');
+        }
+      });
+    } catch (e) {
+      debugPrint('Error setting console listener: $e');
+    }
 
-      // Set JavaScript alert dialog listener
-      try {
-        await controller.setOnJavaScriptAlertDialog(
-            (JavaScriptAlertDialogRequest request) async {
+    // Set JavaScript alert dialog listener
+    try {
+      controller.setOnJavaScriptAlertDialog(
+          (JavaScriptAlertDialogRequest request) async {
+        try {
           widget.backend.triggerControlEvent(
               widget.control.id,
               "javascript_alert_dialog",
               jsonEncode({
-                "message": request.message,
-                "url": request.url,
+                "message": request.message ?? "",
+                "url": request.url ?? "",
               }));
-        });
-      } catch (e) {
-        debugPrint('Error setting JS alert listener: $e');
-      }
+        } catch (e) {
+          debugPrint('Error in JS alert listener: $e');
+        }
+      });
+    } catch (e) {
+      debugPrint('Error setting JS alert listener: $e');
+    }
+  }
 
-      // Subscribe to backend methods
-      widget.backend.subscribeMethods(widget.control.id,
-          (methodName, args) async {
+  void _subscribeToBackendMethods() {
+    widget.backend.subscribeMethods(widget.control.id,
+        (methodName, args) async {
+      try {
         switch (methodName) {
           case "reload":
             await controller.reload();
             break;
           case "can_go_back":
-            return controller.canGoBack().toString();
+            bool canGoBack = await controller.canGoBack();
+            return canGoBack.toString();
           case "can_go_forward":
-            return controller.canGoForward().toString();
+            bool canGoForward = await controller.canGoForward();
+            return canGoForward.toString();
           case "go_back":
             if (await controller.canGoBack()) {
               await controller.goBack();
@@ -238,71 +336,71 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
             await controller.clearLocalStorage();
             break;
           case "get_current_url":
-            return await controller.currentUrl();
+            String? currentUrl = await controller.currentUrl();
+            return currentUrl ?? "";
           case "get_title":
-            return await controller.getTitle();
+            String? title = await controller.getTitle();
+            return title ?? "";
           case "get_user_agent":
-            return await controller.getUserAgent();
+            String? userAgent = await controller.getUserAgent();
+            return userAgent ?? "";
           case "load_file":
-            var path = args["path"];
+            var path = args?["path"];
             if (path != null) {
               await controller.loadFile(path);
             }
             break;
           case "load_html":
-            var html = args["value"];
+            var html = args?["value"];
             if (html != null) {
-              await controller.loadHtmlString(html, baseUrl: args["base_url"]);
+              String? baseUrl = args?["base_url"];
+              await controller.loadHtmlString(html, baseUrl: baseUrl);
             }
             break;
           case "load_request":
-            var url = args["url"];
+            var url = args?["url"];
             if (url != null) {
-              await controller.loadRequest(Uri.parse(url),
-                  method: parseLoadRequestMethod(
-                      args["method"], LoadRequestMethod.get)!);
+              var method = parseLoadRequestMethod(
+                  args?["method"], LoadRequestMethod.get) ?? LoadRequestMethod.get;
+              Uri? uri = Uri.tryParse(url);
+              if (uri != null) {
+                await controller.loadRequest(uri, method: method);
+              }
             }
             break;
           case "run_javascript":
-            var javascript = args["value"];
+            var javascript = args?["value"];
             if (javascript != null) {
               await controller.runJavaScript(javascript);
             }
             break;
           case "scroll_to":
-            var x = parseInt(args["x"]);
-            var y = parseInt(args["y"]);
+            var x = parseInt(args?["x"]);
+            var y = parseInt(args?["y"]);
             if (x != null && y != null) {
               await controller.scrollTo(x, y);
             }
             break;
           case "scroll_by":
-            var x = parseInt(args["x"]);
-            var y = parseInt(args["y"]);
+            var x = parseInt(args?["x"]);
+            var y = parseInt(args?["y"]);
             if (x != null && y != null) {
               await controller.scrollBy(x, y);
             }
             break;
           case "set_javascript_mode":
-            var value = parseBool(args["value"]);
+            var value = parseBool(args?["value"]);
             if (value != null) {
               await controller.setJavaScriptMode(
                   value ? JavaScriptMode.unrestricted : JavaScriptMode.disabled);
             }
             break;
         }
-        return null;
-      });
-    } catch (e) {
-      debugPrint('Error initializing WebView: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isInitialized = true;
-          _errorMessage = "WebView initialization failed: $e\nPlatform: ${Platform.operatingSystem}";
-        });
+      } catch (e) {
+        debugPrint('Error in backend method $methodName: $e');
       }
-    }
+      return null;
+    });
   }
 
   @override
