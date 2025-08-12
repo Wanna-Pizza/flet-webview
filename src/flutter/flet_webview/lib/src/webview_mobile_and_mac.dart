@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flet/flet.dart';
 import 'package:flet_webview/src/utils/webview.dart';
@@ -19,25 +20,52 @@ class WebviewMobileAndMac extends StatefulWidget {
 
 class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
   late WebViewController controller;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _initializeWebView();
+  }
 
-    var params = const PlatformWebViewControllerCreationParams();
-    controller = WebViewController.fromPlatformCreationParams(params);
-
-    var preventLink = widget.control.attrString("preventLink")?.trim();
-    if (widget.bgcolor != null) {
-      controller.setBackgroundColor(widget.bgcolor!);
+  void _initializeWebView() async {
+    // Platform-specific initialization
+    if (Platform.isIOS) {
+      var params = const PlatformWebViewControllerCreationParams();
+      controller = WebViewController.fromPlatformCreationParams(params);
+    } else if (Platform.isMacOS) {
+      var params = const PlatformWebViewControllerCreationParams();
+      controller = WebViewController.fromPlatformCreationParams(params);
+    } else {
+      var params = const PlatformWebViewControllerCreationParams();
+      controller = WebViewController.fromPlatformCreationParams(params);
     }
 
-    controller.setNavigationDelegate(
+    var preventLink = widget.control.attrString("preventLink")?.trim();
+    
+    // Set background color first
+    if (widget.bgcolor != null) {
+      await controller.setBackgroundColor(widget.bgcolor!);
+    } else {
+      await controller.setBackgroundColor(Colors.white);
+    }
+
+    // Enable JavaScript
+    await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+
+    // Set navigation delegate
+    await controller.setNavigationDelegate(
       NavigationDelegate(
         onProgress: (int progress) {
           debugPrint('WebViewControl is loading (progress : $progress%)');
           widget.backend.triggerControlEvent(
               widget.control.id, "progress", progress.toString());
+          
+          if (progress == 100) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
         },
         onUrlChange: (UrlChange url) {
           debugPrint('WebViewControl URL changed: ${url.url}');
@@ -46,15 +74,25 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
         },
         onPageStarted: (String url) {
           debugPrint('WebViewControl page started loading: $url');
+          setState(() {
+            _isLoading = true;
+          });
           widget.backend
               .triggerControlEvent(widget.control.id, "page_started", url);
         },
         onPageFinished: (String url) {
           debugPrint('WebViewControl page finished loading: $url');
+          setState(() {
+            _isLoading = false;
+          });
           widget.backend
               .triggerControlEvent(widget.control.id, "page_ended", url);
         },
         onWebResourceError: (WebResourceError error) {
+          debugPrint('WebView error: ${error.description}');
+          setState(() {
+            _isLoading = false;
+          });
           widget.backend.triggerControlEvent(widget.control.id,
               "web_resource_error", "WebView error: ${error.description}");
         },
@@ -67,11 +105,24 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
       ),
     );
 
-    controller.loadRequest(
-        Uri.parse(widget.control.attrString("url", "https://flet.dev")!),
-        method: parseLoadRequestMethod(
-            widget.control.attrString("method"), LoadRequestMethod.get)!);
-    controller.setOnScrollPositionChange((ScrollPositionChange position) {
+    // Load the initial URL
+    try {
+      final url = widget.control.attrString("url", "https://flet.dev")!;
+      final method = parseLoadRequestMethod(
+          widget.control.attrString("method"), LoadRequestMethod.get)!;
+      
+      debugPrint('Loading URL: $url with method: $method');
+      await controller.loadRequest(Uri.parse(url), method: method);
+    } catch (e) {
+      debugPrint('Error loading initial URL: $e');
+      // Fallback to a simple HTML page
+      await controller.loadHtmlString(
+        '<html><body><h1>WebView Ready</h1><p>URL loading failed: $e</p></body></html>'
+      );
+    }
+
+    // Set scroll position change listener
+    await controller.setOnScrollPositionChange((ScrollPositionChange position) {
       widget.backend.triggerControlEvent(
           widget.control.id,
           "scroll",
@@ -80,7 +131,9 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
             "y": position.y.toString(),
           }));
     });
-    controller.setOnConsoleMessage((JavaScriptConsoleMessage message) {
+
+    // Set console message listener
+    await controller.setOnConsoleMessage((JavaScriptConsoleMessage message) {
       widget.backend.triggerControlEvent(
           widget.control.id,
           "console_message",
@@ -89,7 +142,9 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
             "level": message.level.name,
           }));
     });
-    controller.setOnJavaScriptAlertDialog(
+
+    // Set JavaScript alert dialog listener
+    await controller.setOnJavaScriptAlertDialog(
         (JavaScriptAlertDialogRequest request) async {
       widget.backend.triggerControlEvent(
           widget.control.id,
@@ -195,6 +250,14 @@ class _WebviewMobileAndMacState extends State<WebviewMobileAndMac> {
   Widget build(BuildContext context) {
     debugPrint("WebViewControl build: ${widget.control.id}");
 
-    return WebViewWidget(controller: controller);
+    return Stack(
+      children: [
+        WebViewWidget(controller: controller),
+        if (_isLoading)
+          const Center(
+            child: CircularProgressIndicator(),
+          ),
+      ],
+    );
   }
 }
